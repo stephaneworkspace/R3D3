@@ -32,13 +32,25 @@ extern crate gl;
 extern crate sdl2;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate render_gl_derive;
 
 pub mod render_gl;
 pub mod resources;
 
 use crate::resources::Resources;
 use failure::err_msg;
+use render_gl::data;
 use std::path::Path;
+
+#[derive(VertexAttribPointers, Copy, Clone, Debug)]
+#[repr(C, packed)]
+struct Vertex {
+    #[location = "0"]
+    pos: data::f32_f32_f32,
+    #[location = "1"]
+    clr: data::f32_f32_f32,
+}
 
 fn main() {
     if let Err(e) = run() {
@@ -47,8 +59,7 @@ fn main() {
 }
 
 fn run() -> Result<(), failure::Error> {
-    let res = Resources::from_relative_exe_path(Path::new("assets-07")).unwrap();
-
+    let res = Resources::from_relative_exe_path(Path::new("assets")).unwrap();
     let sdl = sdl2::init().map_err(err_msg)?;
     let video_subsystem = sdl.video().map_err(err_msg)?;
 
@@ -71,7 +82,7 @@ fn run() -> Result<(), failure::Error> {
 
     // Set up shader program
 
-    let shader_program = render_gl::Program::from_res(&gl, &res, "shaders/triangle").unwrap();
+    let shader_program = render_gl::Program::from_res(&gl, &res, "shaders/triangle")?;
     /*use std::ffi::CString;
 
     let vert_shader =
@@ -87,12 +98,27 @@ fn run() -> Result<(), failure::Error> {
     shader_program.set_used(); */
 
     // set up vertex buffer object
-
-    let vertices: Vec<f32> = vec![
-        // positions      // colors
-        0.5, -0.5, 0.0, 1.0, 0.0, 0.0, // bottom right
-        -0.5, -0.5, 0.0, 0.0, 1.0, 0.0, // bottom left
-        0.0, 0.5, 0.0, 0.0, 0.0, 1.0, // top
+    /*
+        let vertices: Vec<f32> = vec![
+            // positions      // colors
+            0.5, -0.5, 0.0, 1.0, 0.0, 0.0, // bottom right
+            -0.5, -0.5, 0.0, 0.0, 1.0, 0.0, // bottom left
+            0.0, 0.5, 0.0, 0.0, 0.0, 1.0, // top
+        ];
+    */
+    let vertices: Vec<Vertex> = vec![
+        Vertex {
+            pos: (0.5, -0.5, 0.0).into(),
+            clr: (1.0, 0.0, 0.0).into(),
+        }, // bottom right
+        Vertex {
+            pos: (-0.5, -0.5, 0.0).into(),
+            clr: (0.0, 1.0, 0.0).into(),
+        }, // bottom left
+        Vertex {
+            pos: (0.0, 0.5, 0.0).into(),
+            clr: (0.0, 0.0, 1.0).into(),
+        }, // top
     ];
 
     let mut vbo: gl::types::GLuint = 0;
@@ -103,8 +129,9 @@ fn run() -> Result<(), failure::Error> {
     unsafe {
         gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
         gl.BufferData(
-            gl::ARRAY_BUFFER,                                                       // target
-            (vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr, // size of data in bytes
+            gl::ARRAY_BUFFER, // target
+            // (vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr, // size of data in bytes
+            (vertices.len() * std::mem::size_of::<Vertex>()) as gl::types::GLsizeiptr, // size of data in bytes
             vertices.as_ptr() as *const gl::types::GLvoid, // pointer to data
             gl::STATIC_DRAW,                               // usage
         );
@@ -121,25 +148,27 @@ fn run() -> Result<(), failure::Error> {
     unsafe {
         gl.BindVertexArray(vao);
         gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-
-        gl.EnableVertexAttribArray(0); // this is "layout (location = 0)" in vertex shader
-        gl.VertexAttribPointer(
-            0,         // index of the generic vertex attribute ("layout (location = 0)")
-            3,         // the number of components per generic vertex attribute
-            gl::FLOAT, // data type
-            gl::FALSE, // normalized (int-to-float conversion)
-            (6 * std::mem::size_of::<f32>()) as gl::types::GLint, // stride (byte offset between consecutive attributes)
-            std::ptr::null(),                                     // offset of the first component
-        );
-        gl.EnableVertexAttribArray(1); // this is "layout (location = 0)" in vertex shader
-        gl.VertexAttribPointer(
-            1,         // index of the generic vertex attribute ("layout (location = 0)")
-            3,         // the number of components per generic vertex attribute
-            gl::FLOAT, // data type
-            gl::FALSE, // normalized (int-to-float conversion)
-            (6 * std::mem::size_of::<f32>()) as gl::types::GLint, // stride (byte offset between consecutive attributes)
-            (3 * std::mem::size_of::<f32>()) as *const gl::types::GLvoid, // offset of the first component
-        );
+        /*
+                gl.EnableVertexAttribArray(0); // this is "layout (location = 0)" in vertex shader
+                gl.VertexAttribPointer(
+                    0,         // index of the generic vertex attribute ("layout (location = 0)")
+                    3,         // the number of components per generic vertex attribute
+                    gl::FLOAT, // data type
+                    gl::FALSE, // normalized (int-to-float conversion)
+                    (6 * std::mem::size_of::<f32>()) as gl::types::GLint, // stride (byte offset between consecutive attributes)
+                    std::ptr::null(),                                     // offset of the first component
+                );
+                gl.EnableVertexAttribArray(1); // this is "layout (location = 0)" in vertex shader
+                gl.VertexAttribPointer(
+                    1,         // index of the generic vertex attribute ("layout (location = 0)")
+                    3,         // the number of components per generic vertex attribute
+                    gl::FLOAT, // data type
+                    gl::FALSE, // normalized (int-to-float conversion)
+                    (6 * std::mem::size_of::<f32>()) as gl::types::GLint, // stride (byte offset between consecutive attributes)
+                    (3 * std::mem::size_of::<f32>()) as *const gl::types::GLvoid, // offset of the first component
+                );
+        */
+        Vertex::vertex_attrib_pointers(&gl);
 
         gl.BindBuffer(gl::ARRAY_BUFFER, 0);
         gl.BindVertexArray(0);

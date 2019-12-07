@@ -35,27 +35,19 @@ extern crate failure;
 #[macro_use]
 extern crate render_gl_derive;
 
+mod debug;
 pub mod render_gl;
 pub mod resources;
+mod triangle;
 
 use crate::resources::Resources;
 use failure::err_msg;
-use render_gl::buffer;
-use render_gl::data;
+use nalgebra as na;
 use std::path::Path;
-
-#[derive(VertexAttribPointers, Copy, Clone, Debug)]
-#[repr(C, packed)]
-struct Vertex {
-    #[location = "0"]
-    pos: data::f32_f32_f32,
-    #[location = "1"]
-    clr: data::f32_f32_f32,
-}
 
 fn main() {
     if let Err(e) = run() {
-        println!("{}", failure_to_string(e));
+        println!("{}", debug::failure_to_string(e));
     }
 }
 
@@ -81,181 +73,34 @@ fn run() -> Result<(), failure::Error> {
         video_subsystem.gl_get_proc_address(s) as *const std::os::raw::c_void
     });
 
-    // Set up shader program
-
-    let shader_program = render_gl::Program::from_res(&gl, &res, "shaders/triangle")?;
-    /*use std::ffi::CString;
-
-    let vert_shader =
-        render_gl::Shader::from_vert_source(&CString::new(include_str!("triangle.vert")).unwrap())
-            .unwrap();
-
-    let frag_shader =
-        render_gl::Shader::from_frag_source(&CString::new(include_str!("triangle.frag")).unwrap())
-            .unwrap();
-
-    let shader_program = render_gl::Program::from_shaders(&[vert_shader, frag_shader]).unwrap();
-
-    shader_program.set_used(); */
-
-    // set up vertex buffer object
-    /*
-        let vertices: Vec<f32> = vec![
-            // positions      // colors
-            0.5, -0.5, 0.0, 1.0, 0.0, 0.0, // bottom right
-            -0.5, -0.5, 0.0, 0.0, 1.0, 0.0, // bottom left
-            0.0, 0.5, 0.0, 0.0, 0.0, 1.0, // top
-        ];
-    */
-    let vertices: Vec<Vertex> = vec![
-        Vertex {
-            pos: (0.5, -0.5, 0.0).into(),
-            clr: (1.0, 0.0, 0.0).into(),
-        }, // bottom right
-        Vertex {
-            pos: (-0.5, -0.5, 0.0).into(),
-            clr: (0.0, 1.0, 0.0).into(),
-        }, // bottom left
-        Vertex {
-            pos: (0.0, 0.5, 0.0).into(),
-            clr: (0.0, 0.0, 1.0).into(),
-        }, // top
-    ];
-
-    /*
-    let mut vbo: gl::types::GLuint = 0;
-    unsafe {
-        gl.GenBuffers(1, &mut vbo);
-    }
-
-    unsafe {
-        gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-        gl.BufferData(
-            gl::ARRAY_BUFFER, // target
-            // (vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr, // size of data in bytes
-            (vertices.len() * std::mem::size_of::<Vertex>()) as gl::types::GLsizeiptr, // size of data in bytes
-            vertices.as_ptr() as *const gl::types::GLvoid, // pointer to data
-            gl::STATIC_DRAW,                               // usage
-        );
-        gl.BindBuffer(gl::ARRAY_BUFFER, 0);
-    }
-
-    // set up vertex array object
-
-    let mut vao: gl::types::GLuint = 0;
-    unsafe {
-        gl.GenVertexArrays(1, &mut vao);
-    }
-
-    unsafe {
-        gl.BindVertexArray(vao);
-        gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-        /*
-                gl.EnableVertexAttribArray(0); // this is "layout (location = 0)" in vertex shader
-                gl.VertexAttribPointer(
-                    0,         // index of the generic vertex attribute ("layout (location = 0)")
-                    3,         // the number of components per generic vertex attribute
-                    gl::FLOAT, // data type
-                    gl::FALSE, // normalized (int-to-float conversion)
-                    (6 * std::mem::size_of::<f32>()) as gl::types::GLint, // stride (byte offset between consecutive attributes)
-                    std::ptr::null(),                                     // offset of the first component
-                );
-                gl.EnableVertexAttribArray(1); // this is "layout (location = 0)" in vertex shader
-                gl.VertexAttribPointer(
-                    1,         // index of the generic vertex attribute ("layout (location = 0)")
-                    3,         // the number of components per generic vertex attribute
-                    gl::FLOAT, // data type
-                    gl::FALSE, // normalized (int-to-float conversion)
-                    (6 * std::mem::size_of::<f32>()) as gl::types::GLint, // stride (byte offset between consecutive attributes)
-                    (3 * std::mem::size_of::<f32>()) as *const gl::types::GLvoid, // offset of the first component
-                );
-        */
-        Vertex::vertex_attrib_pointers(&gl);
-
-        gl.BindBuffer(gl::ARRAY_BUFFER, 0);
-        gl.BindVertexArray(0);
-    }
-    */
-
-    let vbo = buffer::ArrayBuffer::new(&gl);
-    vbo.bind();
-    vbo.static_draw_data(&vertices);
-    vbo.unbind();
-
-    // set up vertex array object
-
-    let vao = buffer::VertexArray::new(&gl);
-
-    vao.bind();
-    vbo.bind();
-    Vertex::vertex_attrib_pointers(&gl);
-    vbo.unbind();
-    vao.unbind();
+    let mut viewport = render_gl::Viewport::for_window(900, 700);
+    let color_buffer = render_gl::ColorBuffer::from_color(na::Vector3::new(0.3, 0.3, 0.5));
+    let triangle = triangle::Triangle::new(&res, &gl)?;
 
     // set up shared state for window
 
-    unsafe {
-        gl.Viewport(0, 0, 800, 600);
-        gl.ClearColor(0.3, 0.3, 0.5, 1.0);
-    }
+    viewport.set_used(&gl);
+    color_buffer.set_used(&gl);
 
     let mut event_pump = sdl.event_pump().map_err(err_msg)?;
     'main: loop {
         for event in event_pump.poll_iter() {
             match event {
                 sdl2::event::Event::Quit { .. } => break 'main,
+                sdl2::event::Event::Window {
+                    win_event: sdl2::event::WindowEvent::Resized(w, h),
+                    ..
+                } => {
+                    viewport.update_size(w, h);
+                    viewport.set_used(&gl);
+                }
                 _ => {}
             }
         }
-        unsafe {
-            gl.Clear(gl::COLOR_BUFFER_BIT);
-        }
-
-        // draw triangle
-
-        shader_program.set_used();
-        vao.bind();
-        unsafe {
-            //gl.BindVertexArray(vao);
-            gl.DrawArrays(
-                gl::TRIANGLES, // mode
-                0,             // starting index in the enabled arrays
-                3,             // number of indices to be rendered
-            );
-        }
+        color_buffer.clear(&gl);
+        triangle.render(&gl);
         window.gl_swap_window();
     }
 
     Ok(())
-}
-
-pub fn failure_to_string(e: failure::Error) -> String {
-    use std::fmt::Write;
-
-    let mut result = String::new();
-
-    for (i, cause) in e
-        .iter_chain()
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .enumerate()
-    {
-        if i > 0 {
-            let _ = writeln!(&mut result, "   Which caused the following issue:");
-        }
-        let _ = write!(&mut result, "{}", cause);
-        if let Some(backtrace) = cause.backtrace() {
-            let backtrace_str = format!("{}", backtrace);
-            if backtrace_str.len() > 0 {
-                let _ = writeln!(&mut result, " This happened at {}", backtrace);
-            } else {
-                let _ = writeln!(&mut result);
-            }
-        } else {
-            let _ = writeln!(&mut result);
-        }
-    }
-
-    result
 }

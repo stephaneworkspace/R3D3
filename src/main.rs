@@ -40,6 +40,7 @@ pub mod resources;
 
 use crate::resources::Resources;
 use failure::err_msg;
+use render_gl::buffer;
 use render_gl::data;
 use std::path::Path;
 
@@ -121,6 +122,7 @@ fn run() -> Result<(), failure::Error> {
         }, // top
     ];
 
+    /*
     let mut vbo: gl::types::GLuint = 0;
     unsafe {
         gl.GenBuffers(1, &mut vbo);
@@ -173,6 +175,22 @@ fn run() -> Result<(), failure::Error> {
         gl.BindBuffer(gl::ARRAY_BUFFER, 0);
         gl.BindVertexArray(0);
     }
+    */
+
+    let vbo = buffer::ArrayBuffer::new(&gl);
+    vbo.bind();
+    vbo.static_draw_data(&vertices);
+    vbo.unbind();
+
+    // set up vertex array object
+
+    let vao = buffer::VertexArray::new(&gl);
+
+    vao.bind();
+    vbo.bind();
+    Vertex::vertex_attrib_pointers(&gl);
+    vbo.unbind();
+    vao.unbind();
 
     // set up shared state for window
 
@@ -196,8 +214,9 @@ fn run() -> Result<(), failure::Error> {
         // draw triangle
 
         shader_program.set_used();
+        vao.bind();
         unsafe {
-            gl.BindVertexArray(vao);
+            //gl.BindVertexArray(vao);
             gl.DrawArrays(
                 gl::TRIANGLES, // mode
                 0,             // starting index in the enabled arrays

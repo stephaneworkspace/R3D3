@@ -74,13 +74,13 @@ fn run() -> Result<(), failure::Error> {
     });
 
     let mut viewport = render_gl::Viewport::for_window(900, 700);
-    let color_buffer = render_gl::ColorBuffer::from_color(na::Vector3::new(0.3, 0.3, 0.5));
+    let color_buffer = render_gl::ColorBuffer::new();
     let triangle = triangle::Triangle::new(&res, &gl)?;
 
     // set up shared state for window
 
     viewport.set_used(&gl);
-    color_buffer.set_used(&gl);
+    color_buffer.set_clear_color(&gl, na::Vector3::new(0.3, 0.3, 0.5));
 
     let mut event_pump = sdl.event_pump().map_err(err_msg)?;
     'main: loop {

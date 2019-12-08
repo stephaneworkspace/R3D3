@@ -2,6 +2,7 @@ use crate::render_gl::{self, buffer, data};
 use crate::resources::Resources;
 use failure;
 use gl;
+use nalgebra as na;
 
 #[derive(VertexAttribPointers, Copy, Clone, Debug)]
 #[repr(C, packed)]
@@ -14,6 +15,7 @@ struct Vertex {
 
 pub struct Triangle {
     program: render_gl::Program,
+    program_view_projection_location: i32,
     _vbo: buffer::ArrayBuffer, // _ to disable warning about not used vbo
     vao: buffer::VertexArray,
 }
@@ -21,11 +23,10 @@ pub struct Triangle {
 impl Triangle {
     pub fn new(res: &Resources, gl: &gl::Gl) -> Result<Triangle, failure::Error> {
         // set up shader program
-
         let program = render_gl::Program::from_res(gl, res, "shaders/triangle")?;
+        let program_view_projection_location = program.get_uniform_location("ViewProjection")?;
 
         // set up vertex buffer object
-
         let vertices: Vec<Vertex> = vec![
             Vertex {
                 pos: (0.5, -0.5, 0.0).into(),
@@ -58,13 +59,16 @@ impl Triangle {
 
         Ok(Triangle {
             program,
+            program_view_projection_location,
             _vbo: vbo,
             vao,
         })
     }
 
-    pub fn render(&self, gl: &gl::Gl) {
+    pub fn render(&self, gl: &gl::Gl, vp_matrix: &na::Matrix4<f32>) {
         self.program.set_used();
+        self.program
+            .set_uniform_matrix4fv(self.program_view_projection_location, &vp_matrix);
         self.vao.bind();
 
         unsafe {

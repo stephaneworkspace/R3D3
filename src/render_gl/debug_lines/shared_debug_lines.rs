@@ -33,4 +33,9 @@ impl SharedDebugLines {
         self.containers.remove(&key);
         self.invalidated = true;
     }
+
+    pub fn get_container_mut(&mut self, key: i32) -> Option<&mut [LinePoint]> {
+        self.invalidated = true;
+        self.containers.get_mut(&key).map(|v| v.as_mut_slice())
+    }
 }

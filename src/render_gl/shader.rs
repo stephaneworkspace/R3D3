@@ -1,5 +1,6 @@
 use crate::resources::{self, Resources};
 use gl;
+use nalgebra as na;
 use std;
 use std::ffi::{CStr, CString};
 
@@ -17,11 +18,17 @@ pub enum Error {
     CompileError { name: String, message: String },
     #[fail(display = "Failed to link program {}: {}", name, message)]
     LinkError { name: String, message: String },
+    #[fail(display = "Failed find uniform {} in {}", uniform_name, program_name)]
+    UniformLocationNotFound {
+        program_name: String,
+        uniform_name: String,
+    },
 }
 
 pub struct Program {
     gl: gl::Gl,
     id: gl::types::GLuint,
+    name: String,
 }
 
 impl Program {
@@ -38,13 +45,13 @@ impl Program {
             .map(|resource_name| Shader::from_res(gl, res, resource_name))
             .collect::<Result<Vec<Shader>, Error>>()?;
 
-        Program::from_shaders(gl, &shaders[..]).map_err(|message| Error::LinkError {
+        Program::from_shaders(name, gl, &shaders[..]).map_err(|message| Error::LinkError {
             name: name.into(),
             message,
         })
     }
 
-    pub fn from_shaders(gl: &gl::Gl, shaders: &[Shader]) -> Result<Program, String> {
+    pub fn from_shaders(name: &str, gl: &gl::Gl, shaders: &[Shader]) -> Result<Program, String> {
         let program_id = unsafe { gl.CreateProgram() };
 
         for shader in shaders {
@@ -89,6 +96,7 @@ impl Program {
         }
 
         Ok(Program {
+            name: name.into(),
             gl: gl.clone(),
             id: program_id,
         })
@@ -101,6 +109,35 @@ impl Program {
     pub fn set_used(&self) {
         unsafe {
             self.gl.UseProgram(self.id);
+        }
+    }
+
+    pub fn get_uniform_location(&self, name: &str) -> Result<i32, Error> {
+        let cname = CString::new(name).expect("expected uniform name to have no nul bytes");
+
+        let location = unsafe {
+            self.gl
+                .GetUniformLocation(self.id, cname.as_bytes_with_nul().as_ptr() as *const i8)
+        };
+
+        if location == -1 {
+            return Err(Error::UniformLocationNotFound {
+                program_name: self.name.clone(),
+                uniform_name: name.into(),
+            });
+        }
+
+        Ok(location)
+    }
+
+    pub fn set_uniform_matrix4fv(&self, location: i32, value: &na::Matrix4<f32>) {
+        unsafe {
+            self.gl.UniformMatrix4fv(
+                location,
+                1,
+                gl::FALSE,
+                value.as_slice().as_ptr() as *const f32,
+            );
         }
     }
 }

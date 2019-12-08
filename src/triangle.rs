@@ -33,12 +33,12 @@ impl Triangle {
                 clr: (1.0, 0.0, 0.0, 1.0).into(),
             }, // bottom right
             Vertex {
-                pos: (-0.5, -0.5, 0.0).into(),
-                clr: (0.0, 1.0, 0.0, 1.0).into(),
-            }, // bottom left
-            Vertex {
                 pos: (0.0, 0.5, 0.0).into(),
                 clr: (0.0, 0.0, 1.0, 1.0).into(),
+            }, // bottom left
+            Vertex {
+                pos: (-0.5, -0.5, 0.0).into(),
+                clr: (0.0, 1.0, 0.0, 1.0).into(),
             }, // top
         ];
 

@@ -36,10 +36,10 @@ extern crate failure;
 extern crate render_gl_derive;
 
 pub mod camera;
+mod cube;
 mod debug;
 pub mod render_gl;
 pub mod resources;
-mod triangle;
 
 use crate::resources::Resources;
 use failure::err_msg;
@@ -85,21 +85,7 @@ fn run() -> Result<(), failure::Error> {
         render_gl::Viewport::for_window(initial_window_size.0, initial_window_size.1);
     let color_buffer = render_gl::ColorBuffer::new();
     let mut debug_lines = render_gl::DebugLines::new(&gl, &res)?;
-    let mut _p = Some(
-        debug_lines
-            .start_polyline([0.5, -0.5, 0.0].into(), [1.0, 0.0, 0.0, 1.0].into())
-            .with_point([0.0, 0.5, 0.0].into(), [0.0, 1.0, 0.0, 1.0].into())
-            .with_point([-0.5, -0.5, 0.0].into(), [1.0, 1.0, 0.0, 0.0].into())
-            .close_and_finish(),
-    );
-    let mut _p2 = Some(
-        debug_lines
-            .start_polyline([0.5, 0.0, -0.5].into(), [1.0, 1.0, 0.0, 1.0].into())
-            .with_point([0.0, 0.0, 0.5].into(), [1.0, 0.0, 0.0, 1.0].into())
-            .with_point([-0.5, 0.0, -0.5].into(), [1.0, 1.0, 0.0, 1.0].into())
-            .close_and_finish(),
-    );
-    let triangle = triangle::Triangle::new(&res, &gl)?;
+    let cube = cube::Cube::new(&res, &gl, &debug_lines)?;
 
     let mut camera = camera::TargetCamera::new(
         initial_window_size.0 as f32 / initial_window_size.1 as f32,
@@ -110,23 +96,6 @@ fn run() -> Result<(), failure::Error> {
         2.0,
     );
     let camera_target_marker = debug_lines.marker(camera.target, 0.25);
-    let camera_position_marker =
-        debug_lines.colored_marker(camera.project_pos(), [0.0, 1.0, 1.0, 1.0].into(), 0.25);
-
-    let mut camera_target_markers = (0..2)
-        .map(|i| {
-            debug_lines.marker(
-                camera.target + na::Vector3::new(i as f32 + 1.0, 0.0, 0.0),
-                0.5,
-            )
-        })
-        .collect::<Vec<_>>();
-    let camera_pos = camera.project_pos();
-    let camera_ray = debug_lines.ray_marker(
-        camera_pos,
-        camera.target - camera_pos,
-        [1.0, 0.0, 0.0, 1.0].into(),
-    );
 
     // set up shared state for window
 
@@ -142,22 +111,6 @@ fn run() -> Result<(), failure::Error> {
         for event in event_pump.poll_iter() {
             match event {
                 sdl2::event::Event::Quit { .. } => break 'main,
-                sdl2::event::Event::KeyDown {
-                    scancode: Some(sdl2::keyboard::Scancode::PageUp),
-                    ..
-                } => {
-                    let len = camera_target_markers.len();
-                    camera_target_markers.push(debug_lines.marker(
-                        camera.target + na::Vector3::new(len as f32 + 1.0, 0.0, 0.0),
-                        0.5,
-                    ));
-                }
-                sdl2::event::Event::KeyDown {
-                    scancode: Some(sdl2::keyboard::Scancode::PageDown),
-                    ..
-                } => {
-                    camera_target_markers.pop();
-                }
                 sdl2::event::Event::KeyDown {
                     scancode: Some(sdl2::keyboard::Scancode::C),
                     ..
@@ -179,32 +132,17 @@ fn run() -> Result<(), failure::Error> {
         time = Instant::now();
         if camera.update(delta as f32) {
             camera_target_marker.update_position(camera.target);
-            camera_position_marker.update_position(camera.project_pos());
-            for (i, m) in camera_target_markers.iter().enumerate() {
-                m.update_position(camera.target + na::Vector3::new(i as f32 + 1.0, 0.0, 0.0));
-            }
-            let camera_pos = camera.project_pos();
-            camera_ray.update_ray(camera_pos, camera.target - camera_pos);
         }
-        //        camera_direction_marker.update_position(camera.target + camera.get_direction());
 
-        let vp_matrix = if side_cam {
-            camera.get_p_matrix()
-                * na::Matrix4::look_at_rh(
-                    &na::Point3::new(-2.0, -2.0, 2.0),
-                    &na::Point3::origin(),
-                    &na::Vector3::z_axis(),
-                )
-        } else {
-            camera.get_vp_matrix()
-        };
-
+        let vp_matrix = camera.get_vp_matrix();
         unsafe {
             gl.Enable(gl::CULL_FACE);
+            gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            gl.Enable(gl::DEPTH_TEST);
         }
 
         color_buffer.clear(&gl);
-        triangle.render(&gl, &vp_matrix);
+        cube.render(&gl, &vp_matrix, &camera.project_pos().coords);
         debug_lines.render(&gl, &color_buffer, &vp_matrix);
 
         window.gl_swap_window();

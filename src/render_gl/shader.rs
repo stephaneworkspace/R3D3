@@ -140,6 +140,12 @@ impl Program {
             );
         }
     }
+
+    pub fn set_uniform_3f(&self, location: i32, value: &na::Vector3<f32>) {
+        unsafe {
+            self.gl.Uniform3f(location, value.x, value.y, value.z);
+        }
+    }
 }
 
 impl Drop for Program {
